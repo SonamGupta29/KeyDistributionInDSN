@@ -54,6 +54,9 @@ int main(int argc, char **argv)
 	//	Assign the Keypool size to the variable
 	KEYPOOL_SIZE = atoi(argv[3]);
 
+	//	Total number of sensor nodes to be deployed
+	d = 10000;
+
 	int count = 10000, points[500][500] = {0}, i, x, y, j, k, l;
 	double distance = 0, avgDistance = 0;
 
@@ -100,8 +103,25 @@ int main(int argc, char **argv)
 	avgDistance = distance / count;
 
 	printf("Average distance = %lf m\n", avgDistance);
-
 	printf("Communication range of sensor nodes = %lf\n", avgDistance / 10);
+
+	//	Compute the physical neighbours i.e. compute the neighbours which are within 
+	// the radius of the communication range and add it to the structure of the sensor node
+
+	sensor sensorList[10000];
+
+	for(i = 0; i < 500; i++)
+		for(j = 0; j < 500; j++)
+			if(points[i][j])
+			{
+				sensorList[count++].x = i;
+				sensorList[count++].y = j;
+			}
+
+
+
+
+
 
 	return 0;
 }
