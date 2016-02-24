@@ -1,1 +1,1 @@
-plot 'sensor_plot.dat'
+plot 'sensor.dat'
