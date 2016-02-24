@@ -86,7 +86,6 @@ int main(int argc, char **argv)
 	}
 	
 	printf("Reading data file...\n");
-
 	fprintf(fplot, "plot '%s'", DAT_FILE);
 
 	//	Close the handles
@@ -94,7 +93,6 @@ int main(int argc, char **argv)
 	fclose(fplot);
 
 	system("gnuplot -p 'wsn.gp'");
-
 	printf("Scaling communication range...\n");
 
 	//	Calculate the average distance for each point
@@ -109,6 +107,8 @@ int main(int argc, char **argv)
 	printf("Average distance = %.2lf m\n", (avgDistance = distance / count));
 	printf("Communication range of sensor nodes = %.2lf m\n", (commRange = avgDistance / 10));
 
+	//	Approximate the commRange value
+	commRange = 27;
 	//	Calculate the physical neighbours
 	int singleSensorCounter = 0;
 	count = 0;
@@ -144,37 +144,42 @@ int main(int argc, char **argv)
 
 	for(i = 0; i < d; i++)
 	{
-		sensorList[i].keyring = (int*)malloc(sizeof(int) * (KEYPOOL_SIZE + 10));
+		sensorList[i].keyring = (int*)malloc(sizeof(int) * (KEYRING_SIZE + 10));
 		for(j = 0; j < KEYRING_SIZE;)
+		{
 			if(randomKeyPoolArray[key = rand() % KEYPOOL_SIZE] == 0)
 			{
 				randomKeyPoolArray[key]	= 1;
 				sensorList[i].keyring[j] = key;
 				j++;
 			}
+		}
+		/*printf("\n%d -> ", i);
+		for(j = 0; j < KEYRING_SIZE; j++)
+			printf(" %d ", sensorList[i].keyring[j]);*/
 		memset(randomKeyPoolArray, 0, sizeof randomKeyPoolArray);
 	}
 
-	//	Calculate the key neighbours for the 
-
+	//	Calculate the key neighbours for the sensor nodes
 	int currentPhyNei = 0;
-
 	for(i = 0; i < d; i++)
 	{
 		//	Get the list of physical neighbours of current sensor node
-		int keyNbrCount = 0, flag = 0;
+		int keyNbrCount = 0;
 		sensorList[i].keynbr = (int*)malloc(sizeof(int) * 1000);
 		for(j = 0; j < sensorList[i].phynbrsize; j++)
 		{
 			//	Check each physical nighbour sensor node key list with the current 
 			//	sensor node, if they have common key then they are key nighbours
+			int flag = 0;
 			currentPhyNei = sensorList[i].phynbr[j];
 
 			//	Get the keyring of the current sensor node
-			for(k = 0; k < 100; k++)
+			int counter = 0;
+			for(k = 0; k < KEYRING_SIZE; k++)
 			{
 				//	Get the key ring of the current physical neighbour node
-				for(l = 0; l < 100; l++)
+				for(l = 0; l < KEYRING_SIZE; l++)
 				{
 					if(sensorList[i].keyring[k] == sensorList[currentPhyNei].keyring[l])
 					{
@@ -189,10 +194,28 @@ int main(int argc, char **argv)
 			}
 		}
 		sensorList[i].keynbrsize = keyNbrCount;
-		printf("%d --> %d\n",i, keyNbrCount);
 	}
 
+	printf("Computing key neighborhood in direct key establishment phase...\n");
+	
+	int totalPhyNei = 0, totalKeyNei = 0;
+	double top = 0, down = 0, theoriticalResult = 1;
 
+	for(i = 0; i < d; i++)
+	{
+		totalKeyNei += sensorList[i].keynbrsize,
+		totalPhyNei += sensorList[i].phynbrsize;
+	}
+
+	printf("Simulated average network connectivity = %.4lf\n", totalKeyNei / (double)(totalPhyNei));
+
+	for(i = 0; i < KEYRING_SIZE; i++)
+	{
+		top = KEYPOOL_SIZE - KEYRING_SIZE - i;
+		down = KEYPOOL_SIZE - i;
+		theoriticalResult *= (top / down);
+	}	
+	printf("Theoretical connectivity = %.4lf\n", 1 - theoriticalResult);
 
 
 	/*//	Calculate the average distance for each point
