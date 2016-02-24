@@ -27,11 +27,15 @@ using i hops in the path */
 typedef struct {
 	int x; /* x-coordinate of sensor node location in target field */
 	int y; /* y-coordinate of sensor node location in target field */
+	int firsthopcount; /* count of the sensor nodes which are reachable using a hop */
+	int secondhopcount;	/* count of the sensor nodes which are reachable using second hop */
 	int *keyring; /* key ring */
 	int phynbrsize; /* number of physical neighbors of a sensor node */
 	int keynbrsize; /* number of key neighbors of a sensor node */
+	int nonkeynbrsize; /* number of key neighbors of a sensor node */
 	int *phynbr; /* list of physical neighbors of a sensor node */
 	int *keynbr; /* list of key neighbors of a sensor node */
+	int *nonkeynbr; /* list of non key neighbors of a sensor node */
 } sensor;
 
 int main(int argc, char **argv)
@@ -44,7 +48,6 @@ int main(int argc, char **argv)
 	}
 
 	//	Assign the commnd line arguments to the variables
-
 	//	Copy the filename in the DAT_FILE
 	strcpy(DAT_FILE, argv[1]);
 
@@ -106,12 +109,13 @@ int main(int argc, char **argv)
 
 	printf("Average distance = %.2lf m\n", (avgDistance = distance / count));
 	printf("Communication range of sensor nodes = %.2lf m\n", (commRange = avgDistance / 10));
+	printf("Computing physical neighbors...\n");
 
 	//	Approximate the commRange value
 	commRange = 27;
 	//	Calculate the physical neighbours
 	int singleSensorCounter = 0;
-	count = 0;
+	count = 0;	
 	for(i = 0; i < d; i++)
 	{
 		singleSensorCounter = 0;
@@ -132,7 +136,6 @@ int main(int argc, char **argv)
 		sensorList[i].phynbrsize = singleSensorCounter;
 	}
 
-	printf("Computing physical neighbors...\n");
 	printf("Average neighborhood size = %d\n", (int)ceil(count / (float)d));
 	printf("EG scheme\n");
 	printf("Distributing keys...\n");
@@ -199,7 +202,7 @@ int main(int argc, char **argv)
 	printf("Computing key neighborhood in direct key establishment phase...\n");
 	
 	int totalPhyNei = 0, totalKeyNei = 0;
-	double top = 0, down = 0, theoriticalResult = 1;
+	double top = 0, down = 0, theoriticalResult = 1, d0;
 
 	for(i = 0; i < d; i++)
 	{
@@ -207,6 +210,7 @@ int main(int argc, char **argv)
 		totalPhyNei += sensorList[i].phynbrsize;
 	}
 
+	d0 = totalPhyNei / (double)d;
 	printf("Simulated average network connectivity = %.4lf\n", totalKeyNei / (double)(totalPhyNei));
 
 	for(i = 0; i < KEYRING_SIZE; i++)
@@ -215,7 +219,95 @@ int main(int argc, char **argv)
 		down = KEYPOOL_SIZE - i;
 		theoriticalResult *= (top / down);
 	}	
-	printf("Theoretical connectivity = %.4lf\n", 1 - theoriticalResult);
+	printf("Theoretical connectivity = %.4lf\n", (p = 1 - theoriticalResult));
+
+	printf("Calculating first hop connectivity (PKE)\n");
+
+	// Get the non key neighbours of all the sensor nodes
+	for(i = 0; i < d; i++)
+	{
+		int nonKeyNei[40000] = {0};
+		sensorList[i].firsthopcount = sensorList[i].secondhopcount = 0;
+		sensorList[i].nonkeynbr = (int*)malloc(sizeof(int) * (KEYRING_SIZE + 10));
+		for(count = 0, j = 0; j < sensorList[i].phynbrsize; j++)
+			for(nonKeyNei[sensorList[i].phynbr[j]] = 1, k = 0; k < sensorList[i].keynbrsize; k++)
+				if(sensorList[i].phynbr[j] == sensorList[i].keynbr[k])
+					nonKeyNei[sensorList[i].keynbr[k]] = 0;
+		for(j = 0; j < 40000; j++)
+			if(nonKeyNei[j] == 1)
+				sensorList[i].nonkeynbr[count++] = j;
+		sensorList[i].nonkeynbrsize = count;
+	}
+
+	//	First hop calculation; check if we can reach the nonkey neighbours from the key neighbours
+	// 	for that check for the key neighbours of the current node key neighbours
+
+	//	For all nodes
+	for(i = 0; i < d; i++)
+	{
+		//	for current sensor node loop through all non key neighbours 
+		for(j = 0; j < sensorList[i].nonkeynbrsize; j++)
+		{
+			int currentNonKeyNeighbour = sensorList[i].nonkeynbr[j];
+			int flag = 0;
+			//	check if we can reach to this non key neighbour from the key neighbours
+			for(k = 0; k < sensorList[i].keynbrsize; k++)
+			{
+				//	Get the key neighbours of the key neighbours of the current sensor node
+				//	if in that array we get the nonkeyneighbour that means we can reach to that
+				// 	node using key neighbour as first hop
+				int currentKeyNeighbour = sensorList[i].keynbr[k];
+
+				for(l = 0; l < sensorList[currentKeyNeighbour].keynbrsize; l++)
+				{
+					if(currentNonKeyNeighbour == sensorList[currentKeyNeighbour].keynbr[l])
+					{
+						flag = 1;
+						sensorList[i].firsthopcount++;
+						break;
+					}
+				}
+				if(flag == 1)
+					break;
+			}
+		}
+	}
+
+	totalKeyNei = totalPhyNei = 0;
+	int totalFirstHopNei = 0;
+	for(i = 0; i < d; i++)
+	{
+		totalKeyNei += sensorList[i].keynbrsize,
+		totalPhyNei += sensorList[i].phynbrsize;
+		totalFirstHopNei += sensorList[i].firsthopcount;
+	}
+
+	double p1 = 1 - ((1 - p)* pow((1 - (p * p)), d0));
+
+	printf("Simulated average network connectivity = %.4lf\n", (totalFirstHopNei + totalKeyNei) / (double)(totalPhyNei)); 	
+
+	printf("Theoretical connectivity = %.4lf\n", p1);
+
+
+
+
+
+/*	key neighbours -- DKE 										Non key nighbours = (physical neighbours - key neighbours) -- PKE using 1,2 hop
+
+
+	key neighbours to nonkey neighbours  common keys in key nighbours and nonkey neighbours   -- > one hop
+
+	key neighbours to again key neighbours of the same 
+
+
+
+
+*/
+
+
+
+
+
 
 
 	/*//	Calculate the average distance for each point
