@@ -1,1 +1,1 @@
-plot 'sensor.dat'
+plot 'gnuplotDatafile.dat'
